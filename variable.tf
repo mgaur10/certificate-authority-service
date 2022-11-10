@@ -17,6 +17,7 @@
 
 ## NOTE: This provides PoC demo environment for various use cases ##
 ##  This is not built for production workload ##
+## author@manisgaur
 
 
 
@@ -34,18 +35,9 @@ variable demo_project_id {
 variable network_region {
 }
 
-variable keyring_name {
+variable network_region2 {
 }
 
-variable crypto_key_name {
-}
-
-variable kmsKeyAlgo {
-}
- 
-variable kmsKeyPurpose {
-}
- 
 variable ca_algo {
 }
 
@@ -90,3 +82,16 @@ variable subcaPoolName {
 
 }
 
+variable subCaId2{
+
+}
+
+
+variable subcaPoolName2 {
+
+}
+
+variable cert_name {
+
+}
+  
