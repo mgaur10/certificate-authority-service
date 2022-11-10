@@ -17,6 +17,7 @@
 
 ## NOTE: This provides PoC demo environment for various use cases ##
 ##  This is not built for production workload ##
+## author@manisgaur
 
 
 
@@ -28,29 +29,29 @@ demo_project_id = "cas-demo-"
 
 
 
-network_region = "us-east1"
+network_region = "us-central1"
+network_region2 = "us-east1"
 
 
-keyring_name = "example_key_ring"
-crypto_key_name = "crypto_key"
-kmsKeyAlgo = "EC_SIGN_P256_SHA256" #EC_SIGN_P384_SHA384; RSA_SIGN_PSS_2048_SHA256; RSA_SIGN_PKCS1_2048_SHA256; 
-kmsKeyPurpose = "ASYMMETRIC_SIGN" #ENCRYPT_DECRYPT, ASYMMETRIC_SIGN, ASYMMETRIC_DECRYPT, and MAC
-
-ca_algo = "EC_P256_SHA256" # SIGN_HASH_ALGORITHM_UNSPECIFIED, RSA_PSS_2048_SHA256, RSA_PSS_3072_SHA256, RSA_PSS_4096_SHA256, RSA_PKCS1_2048_SHA256, RSA_PKCS1_3072_SHA256, RSA_PKCS1_4096_SHA256, EC_P256_SHA256, and EC_P384_SHA384
 
 
-caPoolName = "my-pool"
-subcaPoolName = "my-sub-pool"
+ca_algo = "RSA_PKCS1_2048_SHA256"   #"EC_P256_SHA256"  SIGN_HASH_ALGORITHM_UNSPECIFIED, RSA_PSS_2048_SHA256, RSA_PSS_3072_SHA256, RSA_PSS_4096_SHA256, RSA_PKCS1_2048_SHA256, RSA_PKCS1_3072_SHA256, RSA_PKCS1_4096_SHA256, EC_P256_SHA256, and EC_P384_SHA384
+
+
+caPoolName = "Demo-Root-Pool"
+subcaPoolName = "Demo-Sub-Pool-Central"
+subcaPoolName2 = "Demo-Sub-Pool-East"
 caTier = "ENTERPRISE"
-caId = "my-certificate-authority"
-subCaId = "my-certificate-authority-sub"
+caId = "Demo-Root-CA"
+subCaId = "Demo-Sub-CA-Central"
+subCaId2 = "Demo-Sub-CA-East"
 caType = "SUBORDINATE" #SELF_SIGNED
 
-subject_organization = "my-org"
-subject_common_name = "my-certificate-authority"
+cert_name = "Demo_Leaf_Cert"
+
+subject_organization = "Demo"
+subject_common_name = "Demo"
 subject_country_code = "US"
 subject_organizational_unit = "NA"
 subject_province = "NA"
 subject_locality = "NA"
-
-
