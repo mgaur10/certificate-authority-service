@@ -17,7 +17,7 @@
 
 ## NOTE: This provides PoC demo environment for various use cases ##
 ##  This is not built for production workload ##
-
+## author@manisgaur
 
 
 
@@ -53,9 +53,7 @@ resource "google_project_service" "api_service" {
   for_each = toset([
     "privateca.googleapis.com",
     "storage.googleapis.com",
-    "cloudkms.googleapis.com",
-
-  ])
+    ])
 
   service = each.key
 
@@ -67,81 +65,8 @@ resource "google_project_service" "api_service" {
 
 resource "time_sleep" "wait_enable_service" {
   depends_on = [google_project_service.api_service]
-  create_duration = "120s"
-  destroy_duration = "120s"
-}
-
-
-
-# Create a kms key ring and key
-  resource "google_kms_key_ring" "keyring" {
-  project            = google_project.demo_project.project_id
-    name     = var.keyring_name
-    location = var.network_region
-    depends_on = [time_sleep.wait_enable_service]
-  } 
-  
-
-  resource "google_kms_crypto_key" "kms_key" {
-  #project            = google_project.demo_project.project_id
-    name            = var.crypto_key_name
-    key_ring        = google_kms_key_ring.keyring.id
-  #  rotation_period = "100000s"
-    purpose  = var.kmsKeyPurpose
-
-  version_template {
-    algorithm        = var.kmsKeyAlgo
-    protection_level = "HSM"
-  }
-
-    lifecycle {
-      prevent_destroy = false
-    }
-    depends_on = [
-      google_kms_key_ring.keyring,
-      time_sleep.wait_enable_service,
-      ]
-  }  
-
-
-data "google_kms_crypto_key_version" "keyVersion" {
-  crypto_key = google_kms_crypto_key.kms_key.id
-#  project            = google_project.demo_project.project_id
-    depends_on = [
-      google_kms_key_ring.keyring,
-      time_sleep.wait_enable_service,
-      google_kms_crypto_key.kms_key
-      ]
-}
-
-
-## KMS Permissions for the CA
-resource "google_project_service_identity" "privateca_sa" {
-  provider = google-beta
-  service  = "privateca.googleapis.com"
-  project  = google_project.demo_project.project_id
-  depends_on = [time_sleep.wait_enable_service]
-}
-
-resource "google_kms_crypto_key_iam_binding" "privateca_sa_keyuser_signerverifier" {
-  crypto_key_id = google_kms_crypto_key.kms_key.id
-  role          = "roles/cloudkms.signerVerifier"
-
-  members = [
-    "serviceAccount:${google_project_service_identity.privateca_sa.email}",
-  ]
-#  project            = google_project.demo_project.project_id
-depends_on = [google_project_service_identity.privateca_sa]
-}
-
-resource "google_kms_crypto_key_iam_binding" "privateca_sa_keyuser_viewer" {
-  crypto_key_id = google_kms_crypto_key.kms_key.id
-  role          = "roles/viewer"
-  members = [
-    "serviceAccount:${google_project_service_identity.privateca_sa.email}",
-  ]
-#  project            = google_project.demo_project.project_id
-depends_on = [google_project_service_identity.privateca_sa]
+  create_duration = "30s"
+  destroy_duration = "30s"
 }
 
 
@@ -159,28 +84,15 @@ resource "google_privateca_ca_pool" "ca_pool" {
 }
 
 
-## Subordinate CA pool
-resource "google_privateca_ca_pool" "subca_pool" {
-  name     = var.subcaPoolName
-  location = var.network_region
-  tier     = var.caTier
-  publishing_options {
-    publish_ca_cert = true
-    publish_crl     = true
-  }
-  project            = google_project.demo_project.project_id
-  depends_on = [time_sleep.wait_enable_service]
-}
-
 
 ## rootCA 
-resource "google_privateca_certificate_authority" "rootca" {
-  location                 = var.network_region
+resource "google_privateca_certificate_authority" "root_ca" {
+  location           = var.network_region
   project            = google_project.demo_project.project_id
   certificate_authority_id = var.caId
-  deletion_protection = false
-  skip_grace_period = true
-  ignore_active_certificates_on_deletion = true
+  deletion_protection = false # Disable if wish to preserve from being destroyed
+  skip_grace_period = true 
+  ignore_active_certificates_on_deletion = true # Disable if wish to save issued certificate when destroyed
   pool                     = google_privateca_ca_pool.ca_pool.name
   config {
     x509_config {
@@ -213,50 +125,41 @@ resource "google_privateca_certificate_authority" "rootca" {
     }
   }
   key_spec {
-    cloud_kms_key_version = trimprefix(data.google_kms_crypto_key_version.keyVersion.id, "//cloudkms.googleapis.com/v1/")
-  #  algorithm = var.ca_algo
+     algorithm = var.ca_algo
   }
+    lifetime = "315360000s"
   depends_on = [
-    data.google_kms_crypto_key_version.keyVersion,
-    google_kms_key_ring.keyring,
-    google_kms_crypto_key.kms_key,
-    google_kms_crypto_key_iam_binding.privateca_sa_keyuser_signerverifier,
-    google_kms_crypto_key_iam_binding.privateca_sa_keyuser_viewer,
     google_privateca_ca_pool.ca_pool,
     ]
 }
 
 
-## sub CA
-resource "google_privateca_certificate_authority" "subca" {
-  location                 = var.network_region
+## Sub CA pool Region1
+resource "google_privateca_ca_pool" "sub_ca_pool_reg1" {
+  name     = var.subcaPoolName
+  location = var.network_region
+  tier     = var.caTier
+  publishing_options {
+    publish_ca_cert = true
+    publish_crl     = true
+  }
+  project            = google_project.demo_project.project_id
+  depends_on = [time_sleep.wait_enable_service]
+}
+
+
+resource "google_privateca_certificate_authority" "sub_ca_reg1" {
+  pool = var.subcaPoolName
   project            = google_project.demo_project.project_id
   certificate_authority_id = var.subCaId
-  deletion_protection = false
-  skip_grace_period = true
-  ignore_active_certificates_on_deletion = true
-  pool                     = google_privateca_ca_pool.subca_pool.name
-  type                     = var.caType
-  lifetime = "86400s"
+  location = var.network_region
+  deletion_protection = false # Disable if wish to preserve from being destroyed
+  skip_grace_period = true 
+  ignore_active_certificates_on_deletion = true # Disable if wish to save issued certificate when destroyed
+  subordinate_config {
+    certificate_authority = google_privateca_certificate_authority.root_ca.name
+  }
   config {
-    x509_config {
-      ca_options {
-        is_ca                  = true
-        max_issuer_path_length = 0
-      }
-      key_usage {
-        base_key_usage {
-          crl_sign  = true
-          cert_sign = true
-        }
-        extended_key_usage {
-          server_auth      = true
-          client_auth      = true
-          code_signing     = true
-          email_protection = false
-        }
-      }
-    }
     subject_config {
       subject {
         organization        = var.subject_organization
@@ -266,22 +169,222 @@ resource "google_privateca_certificate_authority" "subca" {
         province            = var.subject_province
         locality            = var.subject_locality
       }
+      subject_alt_name {
+        dns_names = ["hashicorp.com"]
+      }
+    }
+    x509_config {
+      ca_options {
+        is_ca = true
+        # Force the sub CA to only issue leaf certs
+        max_issuer_path_length = 2
+      }
+      key_usage {
+        base_key_usage {
+          digital_signature = true
+          content_commitment = true
+          key_encipherment = false
+          data_encipherment = true
+          key_agreement = true
+          cert_sign = true
+          crl_sign = true
+          decipher_only = true
+        }
+         extended_key_usage {
+          server_auth      = true
+          client_auth      = true
+          code_signing     = true
+          email_protection = false
+        }
+      }
     }
   }
+  lifetime = "94608000s"
   key_spec {
-    cloud_kms_key_version = trimprefix(data.google_kms_crypto_key_version.keyVersion.id, "//cloudkms.googleapis.com/v1/")
-  }
-  depends_on = [
-    data.google_kms_crypto_key_version.keyVersion,
-    google_kms_key_ring.keyring,
-    google_kms_crypto_key.kms_key,
-    google_kms_crypto_key_iam_binding.privateca_sa_keyuser_signerverifier,
-    google_kms_crypto_key_iam_binding.privateca_sa_keyuser_viewer,
-    google_privateca_ca_pool.subca_pool,
-    google_privateca_certificate_authority.rootca,
+     algorithm = var.ca_algo
+     }
+  type = "SUBORDINATE"
+    depends_on = [
+    google_privateca_certificate_authority.root_ca,
+    google_privateca_ca_pool.sub_ca_pool_reg1,
     ]
 }
 
 
 
+resource "google_privateca_certificate" "cert_request" {
+ pool = var.subcaPoolName
+  project            = google_project.demo_project.project_id
+  location              =var.network_region
+  certificate_authority = google_privateca_certificate_authority.sub_ca_reg1.certificate_authority_id
+  lifetime              = "2592000s"
+  name                  = var.cert_name
+  pem_csr               = tls_cert_request.demo_leaf_cert.cert_request_pem
+}
 
+resource "tls_private_key" "pem_key" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+resource "tls_cert_request" "demo_leaf_cert" {
+  private_key_pem = tls_private_key.pem_key.private_key_pem
+
+  subject {
+    common_name  = "demo-example.com"
+    organization = "Demo Examples, Inc"
+  }
+}
+
+
+
+resource "null_resource" "certificate_push_gcs" {
+ 
+  triggers = {
+    data_set = "${google_privateca_certificate.cert_request.pem_csr}"
+  }
+
+  provisioner "local-exec" {
+     command = <<EOT
+      gcloud privateca certificates export ${google_privateca_certificate.cert_request.name} --project ${google_project.demo_project.project_id} --issuer-pool ${var.subcaPoolName} --issuer-location ${var.network_region} --include-chain --output-file ${google_project.demo_project.project_id}-${google_privateca_certificate.cert_request.name}-chain.crt
+      gcloud privateca certificates export ${google_privateca_certificate.cert_request.name} --project ${google_project.demo_project.project_id} --issuer-pool ${var.subcaPoolName} --issuer-location ${var.network_region} --output-file ${google_project.demo_project.project_id}-${google_privateca_certificate.cert_request.name}.crt
+  
+  EOT
+ }
+ depends_on = [
+  google_privateca_certificate_authority.sub_ca_reg1,
+  google_privateca_certificate.cert_request,
+ ]
+ }
+
+
+
+ resource "google_storage_bucket" "certificate_bucket" {
+  name          = "certificate-bucket-${random_string.id.result}"
+  location      = var.network_region
+  force_destroy = true
+  project       = google_project.demo_project.project_id
+  uniform_bucket_level_access = true
+  depends_on =  [time_sleep.wait_enable_service]
+}
+
+
+
+# Add certificate file with chain to bucket
+resource "google_storage_bucket_object" "certificate_chain_push_gcs" {
+  name   = "${google_project.demo_project.project_id}-${google_privateca_certificate.cert_request.name}-chain.crt"
+  bucket = google_storage_bucket.certificate_bucket.name
+  source = "${path.module}/${google_project.demo_project.project_id}-${google_privateca_certificate.cert_request.name}-chain.crt"
+  depends_on = [resource.null_resource.certificate_push_gcs]
+}
+
+# Add certificate file without chain to bucket
+resource "google_storage_bucket_object" "certificate_push_gcs" {
+  name   = "${google_project.demo_project.project_id}-${google_privateca_certificate.cert_request.name}.crt"
+  bucket = google_storage_bucket.certificate_bucket.name
+  source = "${path.module}/${google_project.demo_project.project_id}-${google_privateca_certificate.cert_request.name}.crt"
+  depends_on = [resource.null_resource.certificate_push_gcs]
+}
+
+
+
+
+# Deleting the certificate files from local machine
+resource "null_resource" "del_local_cert_files" {
+ 
+  triggers = {
+    data_set = "${google_storage_bucket_object.certificate_chain_push_gcs.name}"
+  }
+
+  provisioner "local-exec" {
+     command = <<EOT
+      rm ${google_project.demo_project.project_id}-${google_privateca_certificate.cert_request.name}-chain.crt
+      rm ${google_project.demo_project.project_id}-${google_privateca_certificate.cert_request.name}.crt
+  
+  EOT
+ }
+ depends_on = [
+  google_storage_bucket_object.certificate_chain_push_gcs,
+  google_storage_bucket_object.certificate_push_gcs,
+ ]
+ }
+
+
+
+
+
+## Subordinate CA pool other region
+resource "google_privateca_ca_pool" "subca_pool_reg2" {
+  name     = var.subcaPoolName2
+  location = var.network_region2
+  tier     = var.caTier
+  publishing_options {
+    publish_ca_cert = true
+    publish_crl     = true
+  }
+  project            = google_project.demo_project.project_id
+  depends_on = [time_sleep.wait_enable_service]
+}
+
+
+resource "google_privateca_certificate_authority" "sub_ca_reg2" {
+  pool = var.subcaPoolName2
+  project            = google_project.demo_project.project_id
+  certificate_authority_id = var.subCaId2
+  location = var.network_region2
+  deletion_protection = false # Disable if wish to preserve from being destroyed
+  skip_grace_period = true 
+  ignore_active_certificates_on_deletion = true # Disable if wish to save issued certificate when destroyed
+#  desired_state = "enabled"
+  subordinate_config {
+    certificate_authority = google_privateca_certificate_authority.root_ca.name
+  }
+  config {
+    subject_config {
+      subject {
+        organization = "Demo"
+        common_name = "Demo"
+      }
+      subject_alt_name {
+        dns_names = ["demo.com"]
+      }
+    }
+    x509_config {
+      ca_options {
+        is_ca = true
+        # Force the sub CA to only issue leaf certs
+        max_issuer_path_length = 2
+      }
+      key_usage {
+        base_key_usage {
+          digital_signature = true
+          content_commitment = true
+          key_encipherment = false
+          data_encipherment = true
+          key_agreement = true
+          cert_sign = true
+          crl_sign = true
+          decipher_only = true
+        }
+         extended_key_usage {
+          server_auth      = true
+          client_auth      = true
+          code_signing     = true
+          email_protection = false
+        }
+      }
+    }
+  }
+  lifetime = "94608000s"
+  key_spec {
+    algorithm = var.ca_algo
+  }
+  type = "SUBORDINATE"
+
+
+  depends_on = [
+    google_privateca_certificate_authority.root_ca,
+    google_privateca_ca_pool.subca_pool_reg2,
+    ]
+
+}
