@@ -17,11 +17,35 @@
 
 ## NOTE: This provides PoC demo environment for various use cases ##
 ##  This is not built for production workload ##
+## author@manisgaur
 
 
 
-
-output "_01_host_network_project_id" {
+output "_01_cas_project_id" {
   value = google_project.demo_project.project_id
+}
+
+output "_02_root_ca_name_" {
+  value = google_privateca_certificate_authority.root_ca.certificate_authority_id
+}
+
+
+output "_03_sub_ca_name_region1" {
+  value = google_privateca_certificate_authority.sub_ca_reg1.certificate_authority_id
+}
+
+
+output "_04_sub_ca_name_region2" {
+  value = google_privateca_certificate_authority.sub_ca_reg2.certificate_authority_id
+}
+
+
+output "_05_issued_certificate_name" {
+  value = google_privateca_certificate.cert_request.name
+}
+
+
+output "_06_issued_certificate_storage_bucket_name" {
+  value = google_storage_bucket.certificate_bucket.name
 }
 
