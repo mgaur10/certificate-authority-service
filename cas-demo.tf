@@ -65,8 +65,8 @@ resource "google_project_service" "api_service" {
 
 resource "time_sleep" "wait_enable_service" {
   depends_on = [google_project_service.api_service]
-  create_duration = "30s"
-  destroy_duration = "30s"
+  create_duration = "45s"
+  destroy_duration = "45s"
 }
 
 
